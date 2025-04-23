@@ -47,6 +47,13 @@ def main():
     if local_rank == 0:
         print("finished loading data")
 
+    # benchmark data loading time
+    start = time.time()
+    for batch in train_loader:
+        # Simulate doing nothing with the batch
+        _ = batch["input_ids"]
+    print(f"Total data loading time: {time.time() - start:.2f}s")
+
     # 3. Load and wrap model
     model = BertForQuestionAnswering.from_pretrained("bert-base-uncased").to(device)
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
@@ -74,11 +81,6 @@ def main():
             correct = ((start_preds == batch["start_positions"]) & (end_preds == batch["end_positions"])).sum().item()
             total_correct += correct
             total_samples += batch["input_ids"].size(0)
-            sample_count += batch["input_ids"].size(0)
-
-            if sample_count >= 100 and local_rank == 0:
-                print(f"[Epoch {epoch+1}] Loss: {loss.item():.4f} | Accuracy so far: {total_correct / total_samples:.4f}")
-                sample_count = 0
 
         if local_rank == 0:
             duration = time.time() - start_time

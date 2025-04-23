@@ -6,6 +6,8 @@ from torch.utils.data import Dataset, DataLoader
 from transformers import BertForQuestionAnswering, default_data_collator
 from torch.optim import AdamW
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from transformers.models.bert.modeling_bert import BertLayer
 
 encodings_train = torch.load("encodings_train_dict.pt")
 encodings_test = torch.load("encodings_test_dict.pt")
@@ -46,9 +48,25 @@ def main():
     if local_rank == 0:
         print("finished loading data")
 
+    # benchmark data loading time
+    start = time.time()
+    for batch in train_loader:
+        # Simulate doing nothing with the batch
+        _ = batch["input_ids"]
+    print(f"Total data loading time: {time.time() - start:.2f}s")
+
     # 3. Load and wrap model
+    wrap_policy = lambda module, recurse, nonwrapped_numel: transformer_auto_wrap_policy(
+    module,
+    recurse,
+    nonwrapped_numel,
+    {BertLayer}
+    )
+
     model = BertForQuestionAnswering.from_pretrained("bert-base-uncased")
-    fsdp_model = FSDP(model.to(device), device_id=torch.cuda.current_device()) # fsdp handles device placement
+    fsdp_model = FSDP(model.to(device), 
+                    auto_wrap_policy=wrap_policy,
+                    device_id=torch.cuda.current_device()) # fsdp handles device placement
 
     optimizer = AdamW(fsdp_model.parameters(), lr=2e-5)
     fsdp_model.train()

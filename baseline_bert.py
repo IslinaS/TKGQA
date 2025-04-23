@@ -9,8 +9,13 @@ import time
 
 # torch.serialization.add_safe_globals([BatchEncoding])
 
-encodings_train = torch.load("encodings_train_dict.pt")
-encodings_test = torch.load("encodings_test_dict.pt")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"using device: {device}")
+
+print(f"started loading encodings")
+
+encodings_train = torch.load("/home/users/ys298/compsci590-MLSys/project/encodings_train_dict.pt")
+encodings_test = torch.load("/home/users/ys298/compsci590-MLSys/project/encodings_test_dict.pt")
 
 print(f"finished loading encodings")
 
@@ -23,7 +28,7 @@ class QADataset(Dataset):
 
     def __getitem__(self, idx):
         return {
-            key: val[idx] for key, val in self.encodings.items()
+            key: val[idx].to(device) for key, val in self.encodings.items()
         }
 
 train_dataset = QADataset(encodings_train)
@@ -33,14 +38,21 @@ test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False)
 
 print(f"finished loading data")
 
-model = BertForQuestionAnswering.from_pretrained("bert-base-uncased")
+model = BertForQuestionAnswering.from_pretrained("bert-base-uncased").to(device)
 optimizer = AdamW(model.parameters(), lr=2e-5)
 model.train()
 
 total_correct = 0
 total_samples = 0
 sample_count = 0
-num_epochs = 3
+num_epochs = 1
+
+# benchmark data loading time
+start = time.time()
+for batch in train_loader:
+    # Simulate doing nothing with the batch
+    _ = batch["input_ids"]
+print(f"Total data loading time: {time.time() - start:.2f}s")
 
 print(f"starting training...")
 
